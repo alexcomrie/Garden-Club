@@ -1,0 +1,270 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, RefreshCw, ShoppingCart, Info, Eye } from "lucide-react";
+import { useBusiness, useBusinessProducts } from "@/hooks/use-businesses";
+import { useCart } from "@/providers/cart-provider";
+import { BusinessService } from "@/services/business-service";
+import { Product } from "@shared/schema";
+
+interface GardenPlantsProps {
+  params: { id: string };
+}
+
+// Categories matching the Dart app exactly
+const categories = ['Flowers', 'Fruit Trees', 'Herbs', 'Others'];
+
+const categoryIcons: Record<string, string> = {
+  'Flowers': '🌸',
+  'Fruit Trees': '🌳',
+  'Herbs': '🌿',
+  'Others': '🌱'
+};
+
+export default function GardenPlants({ params }: GardenPlantsProps) {
+  const [, setLocation] = useLocation();
+  const [selectedCategory, setSelectedCategory] = useState<string>('Flowers');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const business = useBusiness(params.id);
+  const { data: productsMap, isLoading, error, refetch } = useBusinessProducts(params.id);
+  const { itemCount, addToCart } = useCart();
+
+  const products = productsMap?.get(selectedCategory) || [];
+
+  if (!business) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Garden not found</h2>
+          <Button onClick={() => setLocation('/')}>
+            Back to Gardens
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleAddToCart = (product: Product) => {
+    if (!product.inStock) {
+      return;
+    }
+    addToCart(product, business, 1);
+  };
+
+  const openImageViewer = (imageUrl: string) => {
+    const img = new Image();
+    img.src = BusinessService.getDirectImageUrl(imageUrl);
+    const w = window.open("");
+    if (w) {
+      w.document.write(`
+        <html>
+          <head>
+            <title>Plant Image</title>
+            <style>
+              body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+              img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            ${img.outerHTML}
+          </body>
+        </html>
+      `);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Unable to load plants</h2>
+          <p className="text-muted-foreground mb-4">
+            {error instanceof Error ? error.message : 'Something went wrong'}
+          </p>
+          <Button onClick={handleRefresh}>
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-primary text-primary-foreground p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation('/')}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-semibold">{business.name}</h1>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setLocation('/cart')}
+                className="text-primary-foreground hover:bg-primary-foreground/20"
+              >
+                <ShoppingCart className="h-5 w-5" />
+              </Button>
+              {itemCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {itemCount}
+                </div>
+              )}
+            </div>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation(`/garden/${business.id}/profile`)}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <Info className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        {/* Category Tabs */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+          {categories.map((category) => (
+            <Button
+              key={category}
+              variant={selectedCategory === category ? "default" : "outline"}
+              onClick={() => setSelectedCategory(category)}
+              className="whitespace-nowrap flex items-center gap-2"
+            >
+              <span>{categoryIcons[category]}</span>
+              {category}
+            </Button>
+          ))}
+        </div>
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        )}
+
+        {/* Products List */}
+        {!isLoading && (
+          <>
+            {products.length === 0 ? (
+              <div className="text-center py-12">
+                <h3 className="text-lg font-medium mb-2">No plants available</h3>
+                <p className="text-muted-foreground">
+                  No plants found in the {selectedCategory} category
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {products.map((product, index) => (
+                  <Card key={index} className={`${!product.inStock ? 'opacity-60' : ''}`}>
+                    <CardContent className="p-4">
+                      <div className="flex gap-4">
+                        {/* Product Image */}
+                        {product.imageUrl && (
+                          <div className="flex-shrink-0">
+                            <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
+                              <img
+                                src={BusinessService.getDirectImageUrl(product.imageUrl)}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Product Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start mb-2">
+                            <h3 className="text-lg font-semibold line-clamp-2">
+                              {product.name}
+                            </h3>
+                            {product.imageUrl && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openImageViewer(product.imageUrl)}
+                                className="flex-shrink-0 ml-2"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                          
+                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                            {product.description}
+                          </p>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-bold text-green-600">
+                                ${product.price.toFixed(2)}
+                              </span>
+                              <Badge 
+                                variant={product.inStock ? "default" : "secondary"}
+                                className={product.inStock ? "bg-green-100 text-green-800" : ""}
+                              >
+                                {product.inStock ? 'In Stock' : 'Out of Stock'}
+                              </Badge>
+                            </div>
+                            
+                            <Button
+                              onClick={() => handleAddToCart(product)}
+                              disabled={!product.inStock}
+                              size="sm"
+                            >
+                              Add to Cart
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
