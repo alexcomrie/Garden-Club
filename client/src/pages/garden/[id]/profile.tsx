@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, RefreshCw, ShoppingCart, MapPin, Phone, Mail, Clock } from "lucide-react";
 import { useBusiness, useRefreshBusinesses } from "@/hooks/use-businesses";
 import { useCart } from "@/providers/cart-provider";
-import { BusinessService } from "@/services/business-service";
+import ImageViewer from "@/components/image-viewer";
 
 interface GardenProfileProps {
   params: { id: string };
@@ -46,10 +46,6 @@ export default function GardenProfile({ params }: GardenProfileProps) {
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  const handleImageError = () => {
-    setImageError(true);
   };
 
   if (isLoading) {
@@ -111,22 +107,14 @@ export default function GardenProfile({ params }: GardenProfileProps) {
         {/* Profile Image */}
         {business.profilePictureUrl && (
           <div className="relative aspect-[2/1] rounded-lg overflow-hidden bg-gray-100">
-            {!imageError ? (
-              <img
-                src={`${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${lastRefreshTime}`}
-                alt={business.name}
-                className="w-full h-full object-cover"
-                onError={handleImageError}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                <img
-                  src="/images/placeholder.png"
-                  alt="Placeholder"
-                  className="w-24 h-24 opacity-50"
-                />
-              </div>
-            )}
+            <ImageViewer
+              imageUrl={business.profilePictureUrl}
+              alt={business.name}
+              className="h-full"
+              onError={() => setImageError(true)}
+              refreshKey={lastRefreshTime}
+              enableZoom={true}
+            />
           </div>
         )}
 
@@ -200,32 +188,6 @@ export default function GardenProfile({ params }: GardenProfileProps) {
                 )}
               </div>
             </div>
-
-            {/* About */}
-            {business.bio && (
-              <div>
-                <h2 className="text-lg font-semibold mb-2">About</h2>
-                <p className="whitespace-pre-line">{business.bio}</p>
-              </div>
-            )}
-
-            {/* Map Location */}
-            {business.mapLocation && (
-              <div>
-                <h2 className="text-lg font-semibold mb-2">Location</h2>
-                <div className="aspect-[2/1] rounded-lg overflow-hidden">
-                  <iframe
-                    src={business.mapLocation}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 0 }}
-                    allowFullScreen
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

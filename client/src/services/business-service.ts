@@ -354,23 +354,16 @@ async function loadProducts(productSheetUrl: string): Promise<Map<string, Produc
 function getDirectImageUrl(url: string): string {
   if (!url) return '';
   if (url.includes('drive.google.com')) {
-    let fileId: string | null = null;
-    if (url.includes('/file/d/')) {
-      fileId = url.split('/file/d/')[1].split('/')[0];
-    } else if (url.includes('id=')) {
-      fileId = url.split('id=')[1].split('&')[0];
+    // Extract file ID from Google Drive URL for both formats
+    const regExp = /\/d\/([a-zA-Z0-9_-]+)|\/file\/d\/([a-zA-Z0-9_-]+)/;
+    const match = regExp.exec(url);
+    if (match) {
+      const fileId = match[1] || match[2];
+      if (fileId) {
+        // Use export=view instead of export=download for better compatibility
+        return `https://drive.google.com/uc?export=view&id=${fileId}`;
+      }
     }
-    if (fileId) {
-      // Use export=download for direct image access with proper content type
-      return `https://drive.google.com/uc?export=download&id=${fileId}`;
-    }
-  }
-  // Add support for common image formats
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
-  const hasImageExtension = imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
-  if (!hasImageExtension && !url.includes('drive.google.com')) {
-    // Try to append .jpg if no extension is present
-    return `${url}.jpg`;
   }
   return url;
 }

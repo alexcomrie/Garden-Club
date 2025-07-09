@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, RefreshCw, ShoppingCart, Info, Eye } from "lucide-react";
-import { useBusiness, useBusinessProducts, useRefreshBusinesses } from "@/hooks/use-businesses";
+import { useBusiness, useBusinessProducts } from "@/hooks/use-businesses";
 import { useCart } from "@/providers/cart-provider";
-import { BusinessService } from "@/services/business-service";
 import { Product } from "@shared/schema";
+import ImageViewer from "@/components/image-viewer";
 
 interface GardenPlantsProps {
   params: { id: string };
@@ -28,12 +28,13 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('Flowers');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const { data: business, isLoading: isLoadingBusiness, refetch: refetchBusiness } = useBusiness(params.id);
   const { data: productsMap, isLoading: isLoadingProducts, refetch: refetchProducts } = useBusinessProducts(params.id);
   const { itemCount, addToCart } = useCart();
 
-  const products = productsMap && selectedCategory ? Array.from(productsMap.get(selectedCategory) || []) : [];
+  const products = productsMap && selectedCategory ? productsMap.get(selectedCategory) || [] : [];
 
   if (!business) {
     return (
@@ -48,12 +49,9 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
     );
   }
 
-  const refreshBusinesses = useRefreshBusinesses();
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshBusinesses();
       await Promise.all([
         refetchBusiness(),
         refetchProducts()
@@ -69,31 +67,6 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
       return;
     }
     addToCart(product, business, 1);
-  };
-
-  const openImageViewer = (imageUrl: string, productName: string) => {
-    const w = window.open("");
-    if (w) {
-      w.document.write(`
-        <html>
-          <head>
-            <title>${productName}</title>
-            <style>
-              body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-              img { max-width: 100%; max-height: 100vh; object-fit: contain; }
-              .error { color: #fff; text-align: center; font-family: system-ui; }
-            </style>
-          </head>
-          <body>
-            <img 
-              src="${BusinessService.getDirectImageUrl(imageUrl)}?t=${Date.now()}"
-              alt="${productName}"
-              onerror="this.style.display='none'; document.body.innerHTML='<div class=\'error\'>Failed to load image</div>';"
-            />
-          </body>
-        </html>
-      `);
-    }
   };
 
   if (isLoadingBusiness || isLoadingProducts) {
@@ -187,68 +160,63 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
         ) : (
           <div className="space-y-4">
             {products.map((product: Product) => (
-              <Card key={`${product.name}-${product.category}`} className={`${!product.inStock ? 'opacity-60' : ''}`}>
+              <Card 
+                key={`${product.name}-${product.category}`} 
+                className={`${!product.inStock ? 'opacity-60' : ''}`}
+              >
                 <CardContent className="p-4">
                   <div className="flex gap-4">
                     {/* Product Image */}
                     {product.imageUrl && (
                       <div className="flex-shrink-0">
-                        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
-                          <img
-                            src={`${BusinessService.getDirectImageUrl(product.imageUrl)}?t=${Date.now()}`}
+                        <div 
+                          className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                          onClick={() => setSelectedImage(product.imageUrl)}
+                        >
+                          <ImageViewer
+                            imageUrl={product.imageUrl}
                             alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              target.src = '/images/placeholder.png';
-                              target.classList.add('opacity-50');
-                            }}
+                            className="h-full"
+                            refreshKey={lastRefreshTime}
                           />
                         </div>
                       </div>
                     )}
 
-                    {/* Product Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-semibold line-clamp-2">
-                          {product.name}
-                        </h3>
-                        {product.imageUrl && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openImageViewer(product.imageUrl, product.name)}
-                            className="flex-shrink-0 ml-2"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {product.description}
-                      </p>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-bold text-green-600">
-                            ${product.price.toFixed(2)}
-                          </span>
-                          <Badge 
-                            variant={product.inStock ? "default" : "secondary"}
-                            className={product.inStock ? "bg-green-100 text-green-800" : ""}
-                          >
-                            {product.inStock ? 'In Stock' : 'Out of Stock'}
-                          </Badge>
+                    {/* Product Info */}
+                    <div className="flex-grow min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h3 className="font-medium">{product.name}</h3>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
                         </div>
-                        
+                        <div className="flex-shrink-0">
+                          <p className="font-medium">${product.price.toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="mt-2 flex items-center gap-2">
                         <Button
-                          onClick={() => handleAddToCart(product)}
-                          disabled={!product.inStock}
+                          variant="outline"
                           size="sm"
+                          className="flex items-center gap-1"
+                          onClick={() => setSelectedImage(product.imageUrl)}
                         >
-                          Add to Cart
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Button>
+                        <Button
+                          variant={product.inStock ? "default" : "outline"}
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddToCart(product);
+                          }}
+                          disabled={!product.inStock}
+                          className={product.inStock ? "bg-green-600 hover:bg-green-700" : ""}
+                        >
+                          {product.inStock ? "Add to Cart" : "Out of Stock"}
                         </Button>
                       </div>
                     </div>
@@ -259,6 +227,28 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
           </div>
         )}
       </div>
+
+      {/* Full Screen Image Viewer */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 text-white hover:bg-white/20"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </Button>
+          <ImageViewer
+            imageUrl={selectedImage}
+            className="max-w-[90vw] max-h-[90vh]"
+            enableZoom
+            refreshKey={lastRefreshTime}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CartProvider } from "@/providers/cart-provider";
+import { refreshService } from "@/services/refresh-service";
+import { useEffect } from "react";
 import GardenList from "@/pages/garden-list";
 import GardenProfile from "@/pages/garden-profile";
 import GardenPlants from "@/pages/garden-plants";
@@ -27,6 +29,11 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    // Cleanup refresh service when the app unmounts
+    return () => refreshService.cleanup();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <CartProvider>

@@ -45,13 +45,16 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
+      refetchInterval: 5 * 60 * 1000, // 5 minutes for text data
+      refetchOnWindowFocus: true,
+      staleTime: 5 * 60 * 1000, // 5 minutes for text data
+      retry: true,
+      retryDelay: 1000,
+      gcTime: 30 * 60 * 1000, // 30 minutes for image data
     },
     mutations: {
-      retry: false,
+      retry: true,
+      retryDelay: 1000,
     },
   },
 });

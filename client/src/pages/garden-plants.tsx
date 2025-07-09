@@ -8,6 +8,7 @@ import { useBusiness, useBusinessProducts } from "@/hooks/use-businesses";
 import { useCart } from "@/providers/cart-provider";
 import { BusinessService } from "@/services/business-service";
 import { Product } from "@shared/schema";
+import ImageViewer from "@/components/image-viewer";
 
 interface GardenPlantsProps {
   params: { id: string };
@@ -28,6 +29,7 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('Flowers');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   const { data: business, isLoading: isLoadingBusiness, refetch: refetchBusiness } = useBusiness(params.id);
   const { data: productsMap, isLoading: isLoadingProducts, refetch: refetchProducts } = useBusinessProducts(params.id);
@@ -66,33 +68,6 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
       return;
     }
     addToCart(product, business, 1);
-  };
-
-  const openImageViewer = (imageUrl: string) => {
-    const img = new Image();
-    img.src = `${BusinessService.getDirectImageUrl(imageUrl)}?t=${lastRefreshTime}`;
-    img.onerror = () => {
-      img.src = '/images/placeholder.png';
-      img.classList.add('opacity-50');
-    };
-    const w = window.open("");
-    if (w) {
-      w.document.write(`
-        <html>
-          <head>
-            <title>Plant Image</title>
-            <style>
-              body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-              img { max-width: 100%; max-height: 100%; object-fit: contain; }
-              .opacity-50 { opacity: 0.5; }
-            </style>
-          </head>
-          <body>
-            ${img.outerHTML}
-          </body>
-        </html>
-      `);
-    }
   };
 
   if (isLoadingBusiness || isLoadingProducts) {
@@ -195,15 +170,15 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
                     {/* Product Image */}
                     {product.imageUrl && (
                       <div className="flex-shrink-0">
-                        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
-                          <img
-                            src={`${BusinessService.getDirectImageUrl(product.imageUrl)}?t=${lastRefreshTime}`}
+                        <div 
+                          className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 cursor-pointer" 
+                          onClick={() => setSelectedImage(product.imageUrl)}
+                        >
+                          <ImageViewer
+                            imageUrl={product.imageUrl}
                             alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = '/images/placeholder.png';
-                              e.currentTarget.classList.add('opacity-50');
-                            }}
+                            className="w-full h-full"
+                            refreshKey={lastRefreshTime}
                           />
                         </div>
                       </div>
@@ -219,7 +194,7 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => openImageViewer(product.imageUrl)}
+                            onClick={() => setSelectedImage(product.imageUrl)}
                             className="flex-shrink-0 ml-2"
                           >
                             <Eye className="h-4 w-4" />
@@ -260,6 +235,28 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
           </div>
         )}
       </div>
+
+      {/* Full Screen Image Viewer */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 text-white hover:bg-white/20"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </Button>
+          <ImageViewer
+            imageUrl={selectedImage}
+            className="max-w-[90vw] max-h-[90vh]"
+            enableZoom
+            refreshKey={lastRefreshTime}
+          />
+        </div>
+      )}
     </div>
   );
 }

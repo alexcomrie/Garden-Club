@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, MapPin, Phone, Mail, Clock, Truck, Info, ShoppingCart } from "lucide-react";
 import { useBusiness } from "@/hooks/use-businesses";
 import { useCart } from "@/providers/cart-provider";
-import { BusinessService } from "@/services/business-service";
+import ImageViewer from "@/components/image-viewer";
 
 interface GardenProfileProps {
   params: { id: string };
@@ -98,41 +99,11 @@ export default function GardenProfile({ params }: GardenProfileProps) {
           <Card>
             <CardContent className="p-4">
               <div className="w-full h-64 overflow-hidden rounded-lg">
-                <img
-                  src={`${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${Date.now()}`}
+                <ImageViewer
+                  imageUrl={business.profilePictureUrl}
                   alt={business.name}
                   className="w-full h-full object-cover cursor-pointer"
-                  onClick={() => {
-                    // Open image in full screen
-                    const img = new Image();
-                    img.src = `${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${Date.now()}`;
-                    const w = window.open("");
-                    if (w) {
-                      w.document.write(`
-                        <html>
-                          <head>
-                            <title>${business.name}</title>
-                            <style>
-                              body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-                              img { max-width: 100%; max-height: 100vh; object-fit: contain; }
-                              .error { color: #fff; text-align: center; font-family: system-ui; }
-                            </style>
-                          </head>
-                          <body>
-                            <img 
-                              src="${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${Date.now()}"
-                              onerror="this.style.display='none'; document.body.innerHTML='<div class=\'error\'>Failed to load image</div>';"
-                            />
-                          </body>
-                        </html>
-                      `);
-                    }
-                  }}
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.src = '/images/placeholder.png';
-                    target.classList.add('opacity-50');
-                  }}
+                  enableZoom={true}
                 />
               </div>
             </CardContent>
