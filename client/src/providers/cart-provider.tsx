@@ -95,9 +95,12 @@ export function CartProvider({ children }: CartProviderProps) {
   }, [orders, customerName, deliveryOption, deliveryAddress, pickupTime]);
 
   const addToCart = (product: Product, business: Business, quantity: number) => {
-    // If adding from a different business, clear the cart
+    // If adding from a different business, clear the cart first
     if (selectedBusiness && selectedBusiness.id !== business.id) {
       setOrders([]);
+      setSelectedBusiness(business);
+      setOrders([{ product, quantity, business }]);
+      return;
     }
     
     setSelectedBusiness(business);

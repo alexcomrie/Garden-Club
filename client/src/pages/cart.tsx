@@ -117,16 +117,15 @@ export default function Cart() {
     const deliveryMethod = deliveryOption === 'island_wide' ? 'Island Wide Delivery' : 
                           deliveryOption === 'delivery' ? 'Delivery' : 'Pickup';
     
+    // Use the WhatsApp number directly from the business profile
     const phoneNumber = selectedBusiness.whatsAppNumber;
     const addressInfo = deliveryOption === 'delivery' || deliveryOption === 'island_wide' 
       ? `Delivery Address: ${deliveryAddress}` 
       : `Pickup Time: ${pickupTime}`;
     
-    const message = encodeURIComponent(
-      `Hello ${selectedBusiness.name}, I would like to place an order for:\n${orderSummary}\nName: ${customerName}\nDelivery Method: ${deliveryMethod}\n${addressInfo}`
-    );
+    const message = `Hello ${selectedBusiness.name}, I would like to place an order for:\n${orderSummary}\nName: ${customerName}\nDelivery Method: ${deliveryMethod}\n${addressInfo}`;
     
-    const url = `https://wa.me/${phoneNumber}?text=${message}`;
+    const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
     try {
       window.open(url, '_blank');

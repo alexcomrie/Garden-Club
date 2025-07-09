@@ -12,8 +12,16 @@ interface GardenProfileProps {
 
 export default function GardenProfile({ params }: GardenProfileProps) {
   const [, setLocation] = useLocation();
-  const business = useBusiness(params.id);
+  const { data: business, isLoading } = useBusiness(params.id);
   const { itemCount } = useCart();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!business) {
     return (
@@ -91,18 +99,39 @@ export default function GardenProfile({ params }: GardenProfileProps) {
             <CardContent className="p-4">
               <div className="w-full h-64 overflow-hidden rounded-lg">
                 <img
-                  src={BusinessService.getDirectImageUrl(business.profilePictureUrl)}
+                  src={`${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${Date.now()}`}
                   alt={business.name}
                   className="w-full h-full object-cover cursor-pointer"
                   onClick={() => {
                     // Open image in full screen
                     const img = new Image();
-                    img.src = BusinessService.getDirectImageUrl(business.profilePictureUrl);
+                    img.src = `${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${Date.now()}`;
                     const w = window.open("");
-                    w?.document.write(img.outerHTML);
+                    if (w) {
+                      w.document.write(`
+                        <html>
+                          <head>
+                            <title>${business.name}</title>
+                            <style>
+                              body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+                              img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                              .error { color: #fff; text-align: center; font-family: system-ui; }
+                            </style>
+                          </head>
+                          <body>
+                            <img 
+                              src="${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${Date.now()}"
+                              onerror="this.style.display='none'; document.body.innerHTML='<div class=\'error\'>Failed to load image</div>';"
+                            />
+                          </body>
+                        </html>
+                      `);
+                    }
                   }}
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                    const target = e.currentTarget;
+                    target.src = '/images/placeholder.png';
+                    target.classList.add('opacity-50');
                   }}
                 />
               </div>

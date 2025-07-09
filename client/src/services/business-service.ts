@@ -21,10 +21,22 @@ Object.defineProperty(String.prototype, 'hashCode', {
 
 // Exact URL from the CSV file
 const PROFILE_SHEET_URL = 
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vS7mWDvhN5qEC2XTKt3sEXWi2lPNLCRT0zNFEUGd1xjMqNkPyiXE8OIcM-duZ-6U6NGzCQrRMSJ1pD9/pub?output=csv';
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vTsstw4tcDryjFRgMtk7dWyB5WSKE9fu02YOLb5PnajOBGrq9W1wwvHxjvMrxzank8xsHUKBkRF0ib9/pub?output=csv';
 
 let businessCache: Business[] = [];
 let productCache: Map<string, Map<string, Product[]>> = new Map();
+
+async function testDirectImageUrl(url: string): Promise<boolean> {
+  if (!url) return false;
+  try {
+    const directUrl = getDirectImageUrl(url);
+    const response = await fetch(directUrl, { method: 'HEAD' });
+    return response.ok;
+  } catch (e) {
+    console.warn('Failed to test image URL:', url, e);
+    return false;
+  }
+}
 
 
 function productFromCsv(row: string[]): Product {
@@ -39,13 +51,15 @@ function productFromCsv(row: string[]): Product {
 }
 
 function parseProductsCSV(csvText: string): Map<string, Product[]> {
-  const lines = csvText.split('\n').filter(line => line.trim() !== '');
+  // Remove BOM if present
+  csvText = csvText.replace(/^\uFEFF/, '');
+  const rows = parseCSV(csvText);
   const products = new Map<string, Product[]>();
   
   // Skip header row (index 0) and process all data rows
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = 1; i < rows.length; i++) {
     try {
-      const row = parseCSVRow(lines[i]);
+      const row = rows[i];
       if (row.length >= 6) { // Minimum required columns
         const product = productFromCsv(row);
         
@@ -55,7 +69,7 @@ function parseProductsCSV(csvText: string): Map<string, Product[]> {
         products.get(product.category)!.push(product);
       }
     } catch (e) {
-      console.warn('Failed to parse product row:', lines[i], e);
+      console.warn('Failed to parse product row:', rows[i], e);
     }
   }
   
@@ -83,64 +97,89 @@ async function saveBusinessesToLocal(businesses: Business[]): Promise<void> {
   }
 }
 
-function parseCSVRow(row: string): string[] {
-  const result: string[] = [];
-  let current = '';
+function parseCSV(csvText: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
   let inQuotes = false;
-  
-  for (let i = 0; i < row.length; i++) {
-    const char = row[i];
-    
+  let i = 0;
+
+  while (i < csvText.length) {
+    const char = csvText[i];
+
     if (char === '"') {
-      if (inQuotes && row[i + 1] === '"') {
-        current += '"';
-        i++; 
+      if (inQuotes && i + 1 < csvText.length && csvText[i + 1] === '"') {
+        // Escaped quote
+        currentField += '"';
+        i += 2;
       } else {
         inQuotes = !inQuotes;
+        i++;
       }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
+      currentRow.push(currentField.trim());
+      currentField = '';
+      i++;
+    } else if ((char === '\r' && i + 1 < csvText.length && csvText[i + 1] === '\n') || char === '\n') {
+      if (!inQuotes) {
+        currentRow.push(currentField.trim());
+        if (currentRow.length > 0) {
+          rows.push([...currentRow]);
+          currentRow = [];
+        }
+        currentField = '';
+        i += (char === '\r' ? 2 : 1);
+      } else {
+        currentField += char === '\r' ? '\r\n' : '\n';
+        i += (char === '\r' ? 2 : 1);
+      }
     } else {
-      current += char;
+      currentField += char;
+      i++;
     }
   }
-  
-  result.push(current.trim());
-  return result;
+
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    rows.push(currentRow);
+  }
+
+  return rows;
 }
 
 function businessFromCsv(row: string[]): Business {
   return {
     id: row[0].toLowerCase().replace(/\s+/g, '_'),
-    name: row[0],
-    ownerName: row[1],
-    address: row[2],
-    phoneNumber: row[3],
-    whatsAppNumber: row[4],
-    emailAddress: row[5],
-    hasDelivery: row[6].toLowerCase() === 'yes',
-    deliveryArea: row[7],
-    operationHours: row[8],
-    specialHours: row[9],
-    profilePictureUrl: row[10],
-    productSheetUrl: row[11],
-    status: row[12].toLowerCase(),
-    bio: row[13],
-    mapLocation: row.length > 14 ? row[14] : '',
+    name: row[0] || '',
+    ownerName: row[1] || '',
+    address: row[2] || '',
+    phoneNumber: row[3] || '',
+    whatsAppNumber: row[4] || '',
+    emailAddress: row[5] || '',
+    hasDelivery: (row[6] || '').toLowerCase() === 'yes',
+    deliveryArea: row[7] || '',
+    operationHours: row[8] || '',
+    specialHours: row[9] || '',
+    profilePictureUrl: row[10] || '',
+    productSheetUrl: row[11] || '',
+    status: (row[12] || '').toLowerCase(),
+    bio: row[13] || '',
+    mapLocation: row.length > 14 ? row[14] || '' : '',
     deliveryCost: row.length > 15 ? parseFloat(row[15]) || null : null,
-    islandWideDelivery: row.length > 16 ? row[16] : '',
+    islandWideDelivery: row.length > 16 ? row[16] || '' : '',
     islandWideDeliveryCost: row.length > 17 ? parseFloat(row[17]) || null : null
   };
 }
 
 function parseBusinessesCSV(csvText: string): Business[] {
-  const lines = csvText.split('\n').filter(line => line.trim() !== '');
+  // Remove BOM if present
+  csvText = csvText.replace(/^\uFEFF/, '');
+  const rows = parseCSV(csvText);
   const businesses: Business[] = [];
   
   // Skip header row (index 0) and process all data rows
-  for (let i = 1; i < lines.length; i++) {
-    const row = parseCSVRow(lines[i]);
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
     
     if (row.length >= 14) { // Minimum required columns
       try {
@@ -322,9 +361,16 @@ function getDirectImageUrl(url: string): string {
       fileId = url.split('id=')[1].split('&')[0];
     }
     if (fileId) {
-      // Use thumbnail version for better loading performance
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+      // Use export=download for direct image access with proper content type
+      return `https://drive.google.com/uc?export=download&id=${fileId}`;
     }
+  }
+  // Add support for common image formats
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
+  const hasImageExtension = imageExtensions.some(ext => url.toLowerCase().endsWith(ext));
+  if (!hasImageExtension && !url.includes('drive.google.com')) {
+    // Try to append .jpg if no extension is present
+    return `${url}.jpg`;
   }
   return url;
 }
@@ -333,5 +379,6 @@ export const BusinessService = {
   loadBusinesses,
   fetchBusinessesFromNetwork,
   loadProducts,
-  getDirectImageUrl
+  getDirectImageUrl,
+  testDirectImageUrl
 };

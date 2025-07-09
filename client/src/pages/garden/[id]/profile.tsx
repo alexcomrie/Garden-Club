@@ -1,165 +1,231 @@
-import { useBusiness } from "@/hooks/use-businesses";
-import { useParams, useLocation } from "wouter";
+import { useState } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, Phone, Mail, MapPin, Clock, Truck, ArrowLeft, Leaf } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, RefreshCw, ShoppingCart, MapPin, Phone, Mail, Clock } from "lucide-react";
+import { useBusiness, useRefreshBusinesses } from "@/hooks/use-businesses";
+import { useCart } from "@/providers/cart-provider";
+import { BusinessService } from "@/services/business-service";
 
-export default function GardenProfile() {
-  const { id } = useParams<{ id: string }>();
+interface GardenProfileProps {
+  params: { id: string };
+}
+
+export default function GardenProfile({ params }: GardenProfileProps) {
   const [, setLocation] = useLocation();
-  const { data: business, isLoading, error } = useBusiness(id);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
+  const [imageError, setImageError] = useState(false);
 
-  const handleCall = () => {
-    if (business?.phoneNumber) {
-      window.location.href = `tel:${business.phoneNumber}`;
-    }
-  };
+  const { data: business, isLoading, refetch } = useBusiness(params.id);
+  const { itemCount } = useCart();
 
-  const handleEmail = () => {
-    if (business?.email) {
-      window.location.href = `mailto:${business.email}`;
-    }
-  };
-
-  const handleViewMap = () => {
-    if (business?.mapUrl) {
-      window.open(business.mapUrl, '_blank');
-    }
-  };
-
-  const handleViewProducts = () => {
-    setLocation(`/garden/${id}/plants`);
-  };
-
-  if (isLoading) {
+  if (!business) {
     return (
-      <div className="min-h-screen bg-neutral p-4">
-        <Skeleton className="h-64 w-full rounded-lg" />
-        <div className="mt-4 space-y-4">
-          <Skeleton className="h-8 w-3/4" />
-          <Skeleton className="h-4 w-1/2" />
-          <Skeleton className="h-32 w-full" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Garden not found</h2>
+          <Button onClick={() => setLocation('/')}>
+            Back to Gardens
+          </Button>
         </div>
       </div>
     );
   }
 
-  if (error || !business) {
+  const refreshBusinesses = useRefreshBusinesses();
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    setImageError(false);
+    try {
+      await refreshBusinesses();
+      await refetch();
+      setLastRefreshTime(Date.now());
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-neutral p-4 text-center">
-        <Store className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Failed to load garden</h3>
-        <p className="text-gray-600 mb-4">
-          {error instanceof Error ? error.message : 'Please check your connection and try again'}
-        </p>
-        <Button onClick={() => setLocation('/garden-list')}>Go Back</Button>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral">
-      {/* Header with Profile Picture */}
-      <div className="relative h-64">
-        {business.profilePictureUrl ? (
-          <img
-            src={business.profilePictureUrl}
-            alt={business.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-            <Store className="w-20 h-20 text-gray-400" />
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-primary text-primary-foreground p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation(`/garden/${business.id}/plants`)}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-semibold">{business.name}</h1>
           </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 left-4 bg-black/20 text-white hover:bg-black/30"
-          onClick={() => setLocation('/garden-list')}
-        >
-          <ArrowLeft className="w-6 h-6" />
-        </Button>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setLocation('/cart')}
+                className="text-primary-foreground hover:bg-primary-foreground/20"
+              >
+                <ShoppingCart className="h-5 w-5" />
+              </Button>
+              {itemCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {itemCount}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="container mx-auto px-4 py-6 -mt-8">
+      <div className="p-4 space-y-4">
+        {/* Profile Image */}
+        {business.profilePictureUrl && (
+          <div className="relative aspect-[2/1] rounded-lg overflow-hidden bg-gray-100">
+            {!imageError ? (
+              <img
+                src={`${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${lastRefreshTime}`}
+                alt={business.name}
+                className="w-full h-full object-cover"
+                onError={handleImageError}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                <img
+                  src="/images/placeholder.png"
+                  alt="Placeholder"
+                  className="w-24 h-24 opacity-50"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Business Info */}
         <Card>
-          <CardContent className="p-6">
-            <h1 className="text-2xl font-bold mb-2">{business.name}</h1>
-            <p className="text-gray-600 mb-6">{business.description}</p>
-
-            {/* Contact Buttons */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              {business.phoneNumber && (
-                <Button onClick={handleCall} className="w-full">
-                  <Phone className="mr-2 h-4 w-4" />
-                  Call
-                </Button>
-              )}
-              {business.email && (
-                <Button onClick={handleEmail} className="w-full">
-                  <Mail className="mr-2 h-4 w-4" />
-                  Email
-                </Button>
-              )}
+          <CardContent className="p-4 space-y-4">
+            {/* Owner Info */}
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Owner</h2>
+              <p>{business.ownerName}</p>
             </div>
 
-            {/* Business Details */}
-            <div className="space-y-4">
-              {business.address && (
-                <div className="flex items-start space-x-3">
-                  <MapPin className="w-5 h-5 text-gray-500 mt-1" />
-                  <div>
-                    <h3 className="font-semibold">Address</h3>
-                    <p className="text-gray-600">{business.address}</p>
-                    {business.mapUrl && (
-                      <Button
-                        variant="link"
-                        className="px-0 text-primary"
-                        onClick={handleViewMap}
-                      >
-                        View on Map
-                      </Button>
-                    )}
+            {/* Contact Info */}
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Contact Information</h2>
+              <div className="space-y-2">
+                {business.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <p>{business.address}</p>
                   </div>
-                </div>
-              )}
-
-              {business.businessHours && (
-                <div className="flex items-start space-x-3">
-                  <Clock className="w-5 h-5 text-gray-500 mt-1" />
-                  <div>
-                    <h3 className="font-semibold">Business Hours</h3>
-                    <p className="text-gray-600 whitespace-pre-line">{business.businessHours}</p>
+                )}
+                {business.phoneNumber && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-5 w-5" />
+                    <p>{business.phoneNumber}</p>
                   </div>
-                </div>
-              )}
-
-              {(business.isDeliveryAvailable || business.isIslandWideDeliveryAvailable) && (
-                <div className="flex items-start space-x-3">
-                  <Truck className="w-5 h-5 text-gray-500 mt-1" />
-                  <div>
-                    <h3 className="font-semibold">Delivery Options</h3>
-                    <ul className="text-gray-600 list-disc list-inside">
-                      {business.isDeliveryAvailable && <li>Local Delivery Available</li>}
-                      {business.isIslandWideDeliveryAvailable && <li>Island-wide Delivery Available</li>}
-                    </ul>
+                )}
+                {business.emailAddress && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    <p>{business.emailAddress}</p>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* View Products Button */}
-            <Button
-              className="w-full mt-8"
-              size="lg"
-              onClick={handleViewProducts}
-            >
-              <Leaf className="mr-2 h-5 w-5" />
-              View Plants
-            </Button>
+            {/* Operating Hours */}
+            {business.operationHours && (
+              <div>
+                <h2 className="text-lg font-semibold mb-2">Operating Hours</h2>
+                <div className="flex items-start gap-2">
+                  <Clock className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <p className="whitespace-pre-line">{business.operationHours}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Delivery Information */}
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Delivery Information</h2>
+              <div className="space-y-2">
+                <Badge variant={business.hasDelivery ? "default" : "secondary"}>
+                  {business.hasDelivery ? 'Delivery Available' : 'No Delivery Service'}
+                </Badge>
+                {business.hasDelivery && (
+                  <div className="space-y-1">
+                    {business.islandWideDeliveryCost !== null ? (
+                      <p>Island-wide Delivery: ${business.islandWideDeliveryCost.toFixed(2)}</p>
+                    ) : business.deliveryCost ? (
+                      <>
+                        <p>Delivery Cost: ${business.deliveryCost.toFixed(2)}</p>
+                        {business.deliveryArea && (
+                          <p className="text-sm text-muted-foreground">
+                            Delivery Area: {business.deliveryArea}
+                          </p>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* About */}
+            {business.bio && (
+              <div>
+                <h2 className="text-lg font-semibold mb-2">About</h2>
+                <p className="whitespace-pre-line">{business.bio}</p>
+              </div>
+            )}
+
+            {/* Map Location */}
+            {business.mapLocation && (
+              <div>
+                <h2 className="text-lg font-semibold mb-2">Location</h2>
+                <div className="aspect-[2/1] rounded-lg overflow-hidden">
+                  <iframe
+                    src={business.mapLocation}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

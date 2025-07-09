@@ -15,6 +15,7 @@ export default function GardenList() {
   const { itemCount } = useCart();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
 
   const filteredBusinesses = businesses?.filter(business =>
     business.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -26,6 +27,7 @@ export default function GardenList() {
     setIsRefreshing(true);
     try {
       await refreshBusinesses();
+      setLastRefreshTime(Date.now());
     } finally {
       setIsRefreshing(false);
     }
@@ -126,7 +128,13 @@ export default function GardenList() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredBusinesses.map((business) => (
-                  <BusinessCard key={business.id} business={business} />
+                  <BusinessCard
+                    key={business.id}
+                    business={business}
+                    onRefresh={handleRefresh}
+                    lastRefreshTime={lastRefreshTime}
+                    isRefreshing={isRefreshing}
+                  />
                 ))}
               </div>
             )}

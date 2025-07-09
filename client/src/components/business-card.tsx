@@ -1,19 +1,31 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Business } from "@shared/schema";
 import { useLocation } from "wouter";
-import { Store } from "lucide-react";
+import { Store, RefreshCw } from "lucide-react";
 import { BusinessService } from "@/services/business-service";
+import { useCart } from "@/providers/cart-provider";
 
 interface BusinessCardProps {
   business: Business;
+  onRefresh?: () => void;
+  lastRefreshTime?: number;
+  isRefreshing?: boolean;
 }
 
-export default function BusinessCard({ business }: BusinessCardProps) {
+export default function BusinessCard({ business, onRefresh, lastRefreshTime = Date.now(), isRefreshing = false }: BusinessCardProps) {
   const [, setLocation] = useLocation();
+  const [imageError, setImageError] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const { selectedBusiness, clearCart } = useCart();
 
   const handleClick = () => {
-    setLocation(`/garden/${business.id}/profile`);
+    // Clear cart if switching to a different business
+    if (selectedBusiness && selectedBusiness.id !== business.id) {
+      clearCart();
+    }
+    setLocation(`/garden/${business.id}/plants`);
   };
 
   return (
@@ -22,15 +34,43 @@ export default function BusinessCard({ business }: BusinessCardProps) {
       onClick={handleClick}
     >
       <div className="relative h-48 overflow-hidden">
-        {business.profilePictureUrl ? (
-          <img
-            src={BusinessService.getDirectImageUrl(business.profilePictureUrl)}
-            alt={business.name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+        {business.profilePictureUrl && !imageError ? (
+          <div className="relative w-full h-full">
+            <img
+              src={`${BusinessService.getDirectImageUrl(business.profilePictureUrl)}?t=${lastRefreshTime}`}
+              alt={business.name}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+              onError={() => {
+                setImageError(true);
+                setIsImageLoading(false);
+              }}
+              onLoad={() => setIsImageLoading(false)}
+              loading="lazy"
+            />
+            {isImageLoading && (
+              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            )}
+            {onRefresh && (
+              <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-white/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImageError(false);
+                    setIsImageLoading(true);
+                    onRefresh();
+                  }}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="w-full h-full bg-gray-200 flex items-center justify-center">
             <Store className="w-12 h-12 text-gray-400" />
@@ -61,7 +101,13 @@ export default function BusinessCard({ business }: BusinessCardProps) {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => setLocation(`/garden/${business.id}/profile`)}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectedBusiness && selectedBusiness.id !== business.id) {
+                clearCart();
+              }
+              setLocation(`/garden/${business.id}/profile`);
+            }}
             className="flex-1"
           >
             View Profile
@@ -69,7 +115,7 @@ export default function BusinessCard({ business }: BusinessCardProps) {
           <Button 
             variant="default" 
             size="sm" 
-            onClick={() => setLocation(`/garden/${business.id}/plants`)}
+            onClick={handleClick}
             className="flex-1 bg-green-600 hover:bg-green-700"
           >
             View Products

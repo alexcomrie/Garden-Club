@@ -1,216 +1,264 @@
 import { useState } from "react";
-import { useParams, useLocation } from "wouter";
-import { useBusiness, useBusinessProducts } from "@/hooks/use-businesses";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Store, ArrowLeft, ShoppingCart, Plus, Minus } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useCart } from "@/lib/providers/CartProvider";
-import { Product } from "@/lib/models/business";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, RefreshCw, ShoppingCart, Info, Eye } from "lucide-react";
+import { useBusiness, useBusinessProducts, useRefreshBusinesses } from "@/hooks/use-businesses";
+import { useCart } from "@/providers/cart-provider";
+import { BusinessService } from "@/services/business-service";
+import { Product } from "@shared/schema";
 
-export default function GardenPlants() {
-  const { id } = useParams<{ id: string }>();
+interface GardenPlantsProps {
+  params: { id: string };
+}
+
+// Categories matching the Dart app exactly
+const categories = ['Flowers', 'Fruit Trees', 'Herbs', 'Others'];
+
+const categoryIcons: Record<string, string> = {
+  'Flowers': '🌸',
+  'Fruit Trees': '🌳',
+  'Herbs': '🌿',
+  'Others': '🌱'
+};
+
+export default function GardenPlants({ params }: GardenPlantsProps) {
   const [, setLocation] = useLocation();
-  const { data: business, isLoading: isLoadingBusiness } = useBusiness(id);
-  const { data: products, isLoading: isLoadingProducts } = useBusinessProducts(id);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const { addToCart, cart } = useCart();
+  const [selectedCategory, setSelectedCategory] = useState<string>('Flowers');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
+  
+  const { data: business, isLoading: isLoadingBusiness, refetch: refetchBusiness } = useBusiness(params.id);
+  const { data: productsMap, isLoading: isLoadingProducts, refetch: refetchProducts } = useBusinessProducts(params.id);
+  const { itemCount, addToCart } = useCart();
 
-  const categories = products
-    ? Array.from(new Set(products.map((product) => product.category)))
-    : [];
+  const products = productsMap && selectedCategory ? Array.from(productsMap.get(selectedCategory) || []) : [];
 
-  const filteredProducts = selectedCategory
-    ? products?.filter((product) => product.category === selectedCategory)
-    : products;
+  if (!business) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2">Garden not found</h2>
+          <Button onClick={() => setLocation('/')}>
+            Back to Gardens
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-  const handleAddToCart = () => {
-    if (selectedProduct) {
-      addToCart({
-        businessId: id,
-        product: selectedProduct,
-        quantity,
-      });
-      setSelectedProduct(null);
-      setQuantity(1);
+  const refreshBusinesses = useRefreshBusinesses();
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshBusinesses();
+      await Promise.all([
+        refetchBusiness(),
+        refetchProducts()
+      ]);
+      setLastRefreshTime(Date.now());
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleAddToCart = (product: Product) => {
+    if (!product.inStock) {
+      return;
+    }
+    addToCart(product, business, 1);
+  };
+
+  const openImageViewer = (imageUrl: string, productName: string) => {
+    const w = window.open("");
+    if (w) {
+      w.document.write(`
+        <html>
+          <head>
+            <title>${productName}</title>
+            <style>
+              body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+              img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+              .error { color: #fff; text-align: center; font-family: system-ui; }
+            </style>
+          </head>
+          <body>
+            <img 
+              src="${BusinessService.getDirectImageUrl(imageUrl)}?t=${Date.now()}"
+              alt="${productName}"
+              onerror="this.style.display='none'; document.body.innerHTML='<div class=\'error\'>Failed to load image</div>';"
+            />
+          </body>
+        </html>
+      `);
     }
   };
 
   if (isLoadingBusiness || isLoadingProducts) {
     return (
-      <div className="min-h-screen bg-neutral p-4">
-        <Skeleton className="h-16 w-full rounded-lg mb-4" />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-48 w-full rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!business || !products) {
-    return (
-      <div className="min-h-screen bg-neutral p-4 text-center">
-        <Store className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Failed to load plants</h3>
-        <p className="text-gray-600 mb-4">Please check your connection and try again</p>
-        <Button onClick={() => setLocation(`/garden/${id}/profile`)}>Go Back</Button>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-green-600 text-white sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+      <div className="bg-primary text-primary-foreground p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setLocation(`/garden/${id}/profile`)}
-              className="text-white hover:bg-white/10"
+              onClick={() => setLocation('/')}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
             >
-              <ArrowLeft className="w-6 h-6" />
+              <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="text-xl font-bold">{business.name}</h1>
+            <h1 className="text-xl font-semibold">{business.name}</h1>
           </div>
-          {cart.orders.length > 0 && (
+          
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setLocation('/cart')}
-              className="text-white hover:bg-white/10 relative"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
             >
-              <ShoppingCart className="w-6 h-6" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {cart.orders.reduce((sum, order) => sum + order.quantity, 0)}
-              </span>
+              <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
-          )}
-        </div>
-
-        {/* Categories */}
-        {categories.length > 0 && (
-          <div className="container mx-auto px-4 pb-4 overflow-x-auto">
-            <div className="flex space-x-2">
+            
+            <div className="relative">
               <Button
-                variant={selectedCategory === null ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setSelectedCategory(null)}
-                className="text-white hover:bg-white/10 whitespace-nowrap"
+                variant="ghost"
+                size="icon"
+                onClick={() => setLocation('/cart')}
+                className="text-primary-foreground hover:bg-primary-foreground/20"
               >
-                All Plants
+                <ShoppingCart className="h-5 w-5" />
               </Button>
-              {categories.map((category) => (
-                <Button
-                  key={category}
-                  variant={selectedCategory === category ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setSelectedCategory(category)}
-                  className="text-white hover:bg-white/10 whitespace-nowrap"
-                >
-                  {category}
-                </Button>
-              ))}
+              {itemCount > 0 && (
+                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {itemCount}
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </header>
-
-      {/* Products Grid */}
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredProducts?.map((product) => (
-            <Card
-              key={product.id}
-              className="overflow-hidden cursor-pointer transition-transform hover:scale-105"
-              onClick={() => setSelectedProduct(product)}
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation(`/garden/${business.id}/profile`)}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
             >
-              <div className="relative h-48 overflow-hidden">
-                {product.imageUrl ? (
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                    <Store className="w-12 h-12 text-gray-400" />
-                  </div>
-                )}
-                {!product.inStock && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <span className="text-white font-semibold">Out of Stock</span>
-                  </div>
-                )}
-              </div>
-              <CardContent className="p-4">
-                <h3 className="font-semibold truncate">{product.name}</h3>
-                <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                  {product.description}
-                </p>
-                <p className="text-primary font-semibold">${product.price.toFixed(2)}</p>
-              </CardContent>
-            </Card>
-          ))}
+              <Info className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Add to Cart Dialog */}
-      <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{selectedProduct?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {selectedProduct?.imageUrl && (
-              <img
-                src={selectedProduct.imageUrl}
-                alt={selectedProduct.name}
-                className="w-full h-48 object-cover rounded-lg"
-              />
-            )}
-            <p className="text-gray-600">{selectedProduct?.description}</p>
-            <p className="text-lg font-semibold">
-              ${(selectedProduct?.price || 0).toFixed(2)}
-            </p>
+      <div className="p-4">
+        {/* Category Tabs */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+          {categories.map((category) => (
+            <Button
+              key={category}
+              variant={selectedCategory === category ? "default" : "outline"}
+              onClick={() => setSelectedCategory(category)}
+              className="whitespace-nowrap flex items-center gap-2"
+            >
+              <span>{categoryIcons[category]}</span>
+              {category}
+            </Button>
+          ))}
+        </div>
 
-            {selectedProduct?.inStock ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center space-x-4">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <span className="text-lg font-semibold w-8 text-center">{quantity}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setQuantity(quantity + 1)}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-                <Button className="w-full" onClick={handleAddToCart}>
-                  Add to Cart - ${((selectedProduct?.price || 0) * quantity).toFixed(2)}
-                </Button>
-              </div>
-            ) : (
-              <Button className="w-full" disabled>
-                Out of Stock
-              </Button>
-            )}
+        {/* Products List */}
+        {products.length === 0 ? (
+          <div className="text-center py-12">
+            <h3 className="text-lg font-medium mb-2">No plants available</h3>
+            <p className="text-muted-foreground">
+              No plants found in the {selectedCategory} category
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        ) : (
+          <div className="space-y-4">
+            {products.map((product: Product) => (
+              <Card key={`${product.name}-${product.category}`} className={`${!product.inStock ? 'opacity-60' : ''}`}>
+                <CardContent className="p-4">
+                  <div className="flex gap-4">
+                    {/* Product Image */}
+                    {product.imageUrl && (
+                      <div className="flex-shrink-0">
+                        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
+                          <img
+                            src={`${BusinessService.getDirectImageUrl(product.imageUrl)}?t=${Date.now()}`}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.src = '/images/placeholder.png';
+                              target.classList.add('opacity-50');
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Product Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-lg font-semibold line-clamp-2">
+                          {product.name}
+                        </h3>
+                        {product.imageUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openImageViewer(product.imageUrl, product.name)}
+                            className="flex-shrink-0 ml-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-green-600">
+                            ${product.price.toFixed(2)}
+                          </span>
+                          <Badge 
+                            variant={product.inStock ? "default" : "secondary"}
+                            className={product.inStock ? "bg-green-100 text-green-800" : ""}
+                          >
+                            {product.inStock ? 'In Stock' : 'Out of Stock'}
+                          </Badge>
+                        </div>
+                        
+                        <Button
+                          onClick={() => handleAddToCart(product)}
+                          disabled={!product.inStock}
+                          size="sm"
+                        >
+                          Add to Cart
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

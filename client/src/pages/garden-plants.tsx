@@ -27,12 +27,13 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
   const [, setLocation] = useLocation();
   const [selectedCategory, setSelectedCategory] = useState<string>('Flowers');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(Date.now());
   
-  const business = useBusiness(params.id);
-  const { data: productsMap, isLoading, error, refetch } = useBusinessProducts(params.id);
+  const { data: business, isLoading: isLoadingBusiness, refetch: refetchBusiness } = useBusiness(params.id);
+  const { data: productsMap, isLoading: isLoadingProducts, refetch: refetchProducts } = useBusinessProducts(params.id);
   const { itemCount, addToCart } = useCart();
 
-  const products = productsMap?.get(selectedCategory) || [];
+  const products = productsMap && selectedCategory ? productsMap.get(selectedCategory) || [] : [];
 
   if (!business) {
     return (
@@ -50,7 +51,11 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([
+        refetchBusiness(),
+        refetchProducts()
+      ]);
+      setLastRefreshTime(Date.now());
     } finally {
       setIsRefreshing(false);
     }
@@ -65,7 +70,11 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
 
   const openImageViewer = (imageUrl: string) => {
     const img = new Image();
-    img.src = BusinessService.getDirectImageUrl(imageUrl);
+    img.src = `${BusinessService.getDirectImageUrl(imageUrl)}?t=${lastRefreshTime}`;
+    img.onerror = () => {
+      img.src = '/images/placeholder.png';
+      img.classList.add('opacity-50');
+    };
     const w = window.open("");
     if (w) {
       w.document.write(`
@@ -75,6 +84,7 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
             <style>
               body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
               img { max-width: 100%; max-height: 100%; object-fit: contain; }
+              .opacity-50 { opacity: 0.5; }
             </style>
           </head>
           <body>
@@ -85,18 +95,10 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
     }
   };
 
-  if (error) {
+  if (isLoadingBusiness || isLoadingProducts) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Unable to load plants</h2>
-          <p className="text-muted-foreground mb-4">
-            {error instanceof Error ? error.message : 'Something went wrong'}
-          </p>
-          <Button onClick={handleRefresh}>
-            Try Again
-          </Button>
-        </div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -173,96 +175,89 @@ export default function GardenPlants({ params }: GardenPlantsProps) {
           ))}
         </div>
 
-        {/* Loading State */}
-        {isLoading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        )}
-
         {/* Products List */}
-        {!isLoading && (
-          <>
-            {products.length === 0 ? (
-              <div className="text-center py-12">
-                <h3 className="text-lg font-medium mb-2">No plants available</h3>
-                <p className="text-muted-foreground">
-                  No plants found in the {selectedCategory} category
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {products.map((product, index) => (
-                  <Card key={index} className={`${!product.inStock ? 'opacity-60' : ''}`}>
-                    <CardContent className="p-4">
-                      <div className="flex gap-4">
-                        {/* Product Image */}
-                        {product.imageUrl && (
-                          <div className="flex-shrink-0">
-                            <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
-                              <img
-                                src={BusinessService.getDirectImageUrl(product.imageUrl)}
-                                alt={product.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Product Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="text-lg font-semibold line-clamp-2">
-                              {product.name}
-                            </h3>
-                            {product.imageUrl && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openImageViewer(product.imageUrl)}
-                                className="flex-shrink-0 ml-2"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                          
-                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                            {product.description}
-                          </p>
-                          
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg font-bold text-green-600">
-                                ${product.price.toFixed(2)}
-                              </span>
-                              <Badge 
-                                variant={product.inStock ? "default" : "secondary"}
-                                className={product.inStock ? "bg-green-100 text-green-800" : ""}
-                              >
-                                {product.inStock ? 'In Stock' : 'Out of Stock'}
-                              </Badge>
-                            </div>
-                            
-                            <Button
-                              onClick={() => handleAddToCart(product)}
-                              disabled={!product.inStock}
-                              size="sm"
-                            >
-                              Add to Cart
-                            </Button>
-                          </div>
+        {products.length === 0 ? (
+          <div className="text-center py-12">
+            <h3 className="text-lg font-medium mb-2">No plants available</h3>
+            <p className="text-muted-foreground">
+              No plants found in the {selectedCategory} category
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {products.map((product: Product) => (
+              <Card 
+                key={`${product.name}-${product.category}`} 
+                className={`${!product.inStock ? 'opacity-60' : ''}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex gap-4">
+                    {/* Product Image */}
+                    {product.imageUrl && (
+                      <div className="flex-shrink-0">
+                        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100">
+                          <img
+                            src={`${BusinessService.getDirectImageUrl(product.imageUrl)}?t=${lastRefreshTime}`}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = '/images/placeholder.png';
+                              e.currentTarget.classList.add('opacity-50');
+                            }}
+                          />
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
+                    )}
+
+                    {/* Product Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-lg font-semibold line-clamp-2">
+                          {product.name}
+                        </h3>
+                        {product.imageUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openImageViewer(product.imageUrl)}
+                            className="flex-shrink-0 ml-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                        {product.description}
+                      </p>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-green-600">
+                            ${product.price.toFixed(2)}
+                          </span>
+                          <Badge 
+                            variant={product.inStock ? "default" : "secondary"}
+                            className={product.inStock ? "bg-green-100 text-green-800" : ""}
+                          >
+                            {product.inStock ? 'In Stock' : 'Out of Stock'}
+                          </Badge>
+                        </div>
+                        
+                        <Button
+                          onClick={() => handleAddToCart(product)}
+                          disabled={!product.inStock}
+                          size="sm"
+                        >
+                          Add to Cart
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </div>
