@@ -17,15 +17,24 @@ function getProxiedGoogleDriveUrl(url: string): string {
   let directUrl = url;
   
   if (url.includes('drive.google.com')) {
-    // Extract file ID from Google Drive URL for both formats
-    const regExp = /\/d\/([a-zA-Z0-9_-]+)|\/file\/d\/([a-zA-Z0-9_-]+)/;
-    const match = regExp.exec(url);
-    if (match) {
-      const fileId = match[1] || match[2];
-      if (fileId) {
-        // Create the direct Google Drive URL
-        directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    let fileId = null;
+    const regexes = [
+      /\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /\/d\/([a-zA-Z0-9_-]+)/,
+      /[?&]id=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const regex of regexes) {
+      const match = url.match(regex);
+      if (match && match[1]) {
+        fileId = match[1];
+        break;
       }
+    }
+
+    if (fileId) {
+      // Create the direct Google Drive URL
+      directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
   }
   

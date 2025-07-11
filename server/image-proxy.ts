@@ -36,23 +36,34 @@ router.get('/', async (req, res) => {
     const decodedUrl = decodeURIComponent(imageUrl);
     
     // Fetch the image
+    console.log(`[ImageProxy] Attempting to fetch: ${decodedUrl}`);
     const response = await fetch(decodedUrl);
     
+    console.log(`[ImageProxy] Response from Google Drive for ${decodedUrl}: Status ${response.status}`);
+    response.headers.forEach((value, name) => {
+      console.log(`[ImageProxy] Google Response Header for ${decodedUrl}: ${name}: ${value}`);
+    });
+
     if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`[ImageProxy] Failed to fetch image ${decodedUrl}. Status: ${response.status} ${response.statusText}. Body: ${errorBody.substring(0, 200)}`);
       return res.status(response.status).send(`Failed to fetch image: ${response.statusText}`);
     }
     
     // Get the content type
     const contentType = response.headers.get('content-type');
     if (contentType) {
+      console.log(`[ImageProxy] Setting Content-Type for ${decodedUrl}: ${contentType}`);
       res.setHeader('Content-Type', contentType);
+    } else {
+      console.warn(`[ImageProxy] No content-type header from Google Drive for ${decodedUrl}`);
     }
     
     // Stream the response to the client
     response.body.pipe(res);
-  } catch (error) {
-    console.error('Error proxying image:', error);
-    res.status(500).send('Error proxying image');
+  } catch (error: any) {
+    console.error(`[ImageProxy] Error proxying image ${req.query.url}:`, error.message, error.stack);
+    res.status(500).send(`Error proxying image: ${error.message}`);
   }
 });
 

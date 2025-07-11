@@ -38,7 +38,9 @@ export default function ImageViewer({
     
     if (imageUrl) {
       // Start with the proxied URL
-      setImageSrc(`${ImageProxyService.getProxiedGoogleDriveUrl(imageUrl)}?t=${refreshKey}`);
+      const proxiedUrl = `${ImageProxyService.getProxiedGoogleDriveUrl(imageUrl)}&t=${refreshKey}`;
+      console.log('[ImageViewer] Initial attempt with proxied URL:', proxiedUrl);
+      setImageSrc(proxiedUrl);
     }
   }, [imageUrl, refreshKey]);
 
@@ -55,27 +57,33 @@ export default function ImageViewer({
   }
 
   const handleError = () => {
+    const fileId = extractGoogleDriveFileId(imageUrl);
+    console.log(`[ImageViewer] Handling error for ${imageUrl}. Fallback attempt: ${fallbackAttempt}, File ID: ${fileId}`);
+
     // Try fallback methods if the image fails to load
     if (fallbackAttempt === 0) {
-      // First fallback: Try direct Google Drive URL
+      // First fallback: Try Google Drive thumbnail URL (often more reliable for direct embedding)
       setFallbackAttempt(1);
-      setImageSrc(`${BusinessService.getDirectImageUrl(imageUrl)}?t=${refreshKey}`);
-      console.log('Trying fallback 1: Direct Google Drive URL');
-    } else if (fallbackAttempt === 1) {
-      // Second fallback: Try with different parameters
-      setFallbackAttempt(2);
-      const fileId = extractGoogleDriveFileId(imageUrl);
       if (fileId) {
-        setImageSrc(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`);
-        console.log('Trying fallback 2: Google Drive thumbnail URL');
+        const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000&t=${refreshKey}`;
+        console.log('[ImageViewer] Trying fallback 1 (Thumbnail):', thumbnailUrl);
+        setImageSrc(thumbnailUrl);
       } else {
-        // If we can't extract a file ID, mark as error
-        setError(true);
+        console.log('[ImageViewer] Fallback 1 skipped: No File ID for thumbnail.');
+        // If no file ID, try next fallback directly or error out if it was essential
+        setError(true); // Or proceed to next if applicable
         setLoading(false);
         onError?.();
       }
+    } else if (fallbackAttempt === 1) {
+      // Second fallback: Try direct (unproxied) Google Drive view URL
+      setFallbackAttempt(2);
+      const directViewUrl = `${BusinessService.getDirectImageUrl(imageUrl)}&t=${refreshKey}`; // BusinessService.getDirectImageUrl already adds a timestamp
+      console.log('[ImageViewer] Trying fallback 2 (Direct View):', directViewUrl);
+      setImageSrc(directViewUrl);
     } else {
       // All fallbacks failed
+      console.log('[ImageViewer] All fallbacks failed for:', imageUrl);
       setError(true);
       setLoading(false);
       onError?.();
@@ -85,14 +93,29 @@ export default function ImageViewer({
   // Helper function to extract Google Drive file ID
   const extractGoogleDriveFileId = (url: string): string | null => {
     if (!url) return null;
-    if (url.includes('drive.google.com')) {
-      const regExp = /\/d\/([a-zA-Z0-9_-]+)|\/file\/d\/([a-zA-Z0-9_-]+)/;
-      const match = regExp.exec(url);
-      if (match) {
-        return match[1] || match[2] || null;
+    let fileId = null;
+
+    // Regular expression to capture file IDs from various Google Drive URL formats
+    // Covers:
+    // - /file/d/FILE_ID/...
+    // - /d/FILE_ID/...
+    // - open?id=FILE_ID
+    // - uc?id=FILE_ID... (already a direct link component, but good to catch ID)
+    const regexes = [
+      /\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /\/d\/([a-zA-Z0-9_-]+)/,
+      /[?&]id=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const regex of regexes) {
+      const match = url.match(regex);
+      if (match && match[1]) {
+        fileId = match[1];
+        break;
       }
     }
-    return null;
+    // console.log(`[ImageViewer] Extracted File ID '${fileId}' from URL '${url}'`);
+    return fileId;
   };
 
   const handleLoad = () => {

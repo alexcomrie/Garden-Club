@@ -354,17 +354,26 @@ async function loadProducts(productSheetUrl: string): Promise<Map<string, Produc
 function getDirectImageUrl(url: string): string {
   if (!url) return '';
   if (url.includes('drive.google.com')) {
-    // Extract file ID from Google Drive URL for both formats
-    const regExp = /\/d\/([a-zA-Z0-9_-]+)|\/file\/d\/([a-zA-Z0-9_-]+)/;
-    const match = regExp.exec(url);
-    if (match) {
-      const fileId = match[1] || match[2];
-      if (fileId) {
-        // Use export=view instead of export=download for better compatibility
-        // Add a timestamp to prevent caching issues
-        const timestamp = new Date().getTime();
-        return `https://drive.google.com/uc?export=view&id=${fileId}&t=${timestamp}`;
+    let fileId = null;
+    const regexes = [
+      /\/file\/d\/([a-zA-Z0-9_-]+)/,
+      /\/d\/([a-zA-Z0-9_-]+)/,
+      /[?&]id=([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const regex of regexes) {
+      const match = url.match(regex);
+      if (match && match[1]) {
+        fileId = match[1];
+        break;
       }
+    }
+
+    if (fileId) {
+      // Use export=view instead of export=download for better compatibility
+      // Add a timestamp to prevent caching issues
+      const timestamp = new Date().getTime();
+      return `https://drive.google.com/uc?export=view&id=${fileId}&t=${timestamp}`;
     }
   }
   return url;
