@@ -124,7 +124,7 @@ export default function OrderForm({ restaurant, menuItems, selectedItem, onOrder
       }
       
       // Check if we're at the cap
-      if (menuItem.specialCap === null || newSpecials.size < menuItem.specialCap) {
+      if (menuItem.specialCap === undefined || menuItem.specialCap === null || newSpecials.size < menuItem.specialCap) {
         newSpecials.add(special);
       } else {
         toast({
@@ -397,7 +397,7 @@ export default function OrderForm({ restaurant, menuItems, selectedItem, onOrder
                   <Checkbox
                     id="mixFood"
                     checked={formData.isMixFood}
-                    onCheckedChange={handleMixFoodChange}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => handleMixFoodChange(checked === true)}
                   />
                   <Label htmlFor="mixFood">Mix Food (2 mains in 1 meal)</Label>
                 </div>
@@ -463,7 +463,7 @@ export default function OrderForm({ restaurant, menuItems, selectedItem, onOrder
                         <Checkbox
                           id={`second-special-${special}`}
                           checked={formData.selectedSecondMainSpecials.has(special)}
-                          onCheckedChange={(checked) => handleSpecialChange(special, checked as boolean, true)}
+                          onCheckedChange={(checked: boolean | 'indeterminate') => handleSpecialChange(special, checked === true, true)}
                         />
                         <Label htmlFor={`second-special-${special}`}>{special}</Label>
                       </div>
@@ -505,10 +505,10 @@ export default function OrderForm({ restaurant, menuItems, selectedItem, onOrder
                         {formData.selectedMenuItem.specials.map(special => (
                           <div key={special} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`special-${special}`}
-                              checked={formData.selectedSpecials.has(special)}
-                              onCheckedChange={(checked) => handleSpecialChange(special, checked as boolean)}
-                            />
+                            id={`special-${special}`}
+                            checked={formData.selectedSpecials.has(special)}
+                            onCheckedChange={(checked: boolean | 'indeterminate') => handleSpecialChange(special, checked === true)}
+                          />
                             <Label htmlFor={`special-${special}`}>{special}</Label>
                           </div>
                         ))}

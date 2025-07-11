@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BusinessService } from '@/services/business-service';
+import { ImageProxyService } from '@/services/image-proxy-service';
 import { Dialog } from '@/components/ui/dialog';
 
 interface ImageViewerProps {
@@ -24,19 +25,28 @@ export default function ImageViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [imageSrc, setImageSrc] = useState<string>('');
+  const [fallbackAttempt, setFallbackAttempt] = useState(0);
 
+  // Process the image URL and set up fallback mechanisms
   useEffect(() => {
     setError(false);
     setLoading(true);
     setScale(1);
     setPosition({ x: 0, y: 0 });
+    setFallbackAttempt(0);
+    
+    if (imageUrl) {
+      // Start with the proxied URL
+      setImageSrc(`${ImageProxyService.getProxiedGoogleDriveUrl(imageUrl)}?t=${refreshKey}`);
+    }
   }, [imageUrl, refreshKey]);
 
   if (!imageUrl) {
     return (
       <div className={`bg-gray-100 flex items-center justify-center ${className}`}>
         <img
-          src="/images/placeholder.png"
+          src="/images/placeholder.svg"
           alt="Placeholder"
           className="w-24 h-24 opacity-50"
         />
@@ -45,9 +55,44 @@ export default function ImageViewer({
   }
 
   const handleError = () => {
-    setError(true);
-    setLoading(false);
-    onError?.();
+    // Try fallback methods if the image fails to load
+    if (fallbackAttempt === 0) {
+      // First fallback: Try direct Google Drive URL
+      setFallbackAttempt(1);
+      setImageSrc(`${BusinessService.getDirectImageUrl(imageUrl)}?t=${refreshKey}`);
+      console.log('Trying fallback 1: Direct Google Drive URL');
+    } else if (fallbackAttempt === 1) {
+      // Second fallback: Try with different parameters
+      setFallbackAttempt(2);
+      const fileId = extractGoogleDriveFileId(imageUrl);
+      if (fileId) {
+        setImageSrc(`https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`);
+        console.log('Trying fallback 2: Google Drive thumbnail URL');
+      } else {
+        // If we can't extract a file ID, mark as error
+        setError(true);
+        setLoading(false);
+        onError?.();
+      }
+    } else {
+      // All fallbacks failed
+      setError(true);
+      setLoading(false);
+      onError?.();
+    }
+  };
+  
+  // Helper function to extract Google Drive file ID
+  const extractGoogleDriveFileId = (url: string): string | null => {
+    if (!url) return null;
+    if (url.includes('drive.google.com')) {
+      const regExp = /\/d\/([a-zA-Z0-9_-]+)|\/file\/d\/([a-zA-Z0-9_-]+)/;
+      const match = regExp.exec(url);
+      if (match) {
+        return match[1] || match[2] || null;
+      }
+    }
+    return null;
   };
 
   const handleLoad = () => {
@@ -82,7 +127,7 @@ export default function ImageViewer({
     return (
       <div className={`bg-gray-100 flex items-center justify-center ${className}`}>
         <img
-          src="/images/placeholder.png"
+          src="/images/placeholder.svg"
           alt="Placeholder"
           className="w-24 h-24 opacity-50"
         />
@@ -98,13 +143,15 @@ export default function ImageViewer({
       style={{ overflow: 'hidden' }}
     >
       <img
-        src={`${BusinessService.getDirectImageUrl(imageUrl)}?t=${refreshKey}`}
+        src={imageSrc}
         alt={alt}
         className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
         style={{
           transform: `scale(${scale}) translate(${position.x}px, ${position.y}px)`,
           transition: loading ? 'opacity 0.3s' : 'transform 0.1s'
         }}
+        crossOrigin="anonymous"
+        referrerPolicy="no-referrer"
         onError={handleError}
         onLoad={handleLoad}
         loading="lazy"

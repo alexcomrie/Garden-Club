@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Proxy Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .image-container {
+      margin: 20px 0;
+      border: 1px solid #ddd;
+      padding: 10px;
+    }
+    img {
+      max-width: 100%;
+      display: block;
+      margin: 10px 0;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Image Proxy Test</h1>
+  
+  <div class="image-container">
+    <h2>Test 1: Direct Google Drive URL</h2>
+    <p>URL: <code id="url1">https://drive.google.com/uc?export=view&id=1JqzzF-TNlzaLNvKBwpDXkx_IchIVdZQf</code></p>
+    <img id="img1" src="https://drive.google.com/uc?export=view&id=1JqzzF-TNlzaLNvKBwpDXkx_IchIVdZQf" alt="Test Image 1" onerror="handleError('img1', 'error1')" onload="handleSuccess('img1', 'error1')">
+    <p id="error1"></p>
+  </div>
+
+  <div class="image-container">
+    <h2>Test 2: Proxied Google Drive URL</h2>
+    <p>Original URL: <code>https://drive.google.com/file/d/1JqzzF-TNlzaLNvKBwpDXkx_IchIVdZQf/view?usp=drive_link</code></p>
+    <p>Proxied URL: <code id="url2">/api/image-proxy?url=https%3A%2F%2Fdrive.google.com%2Fuc%3Fexport%3Dview%26id%3D1JqzzF-TNlzaLNvKBwpDXkx_IchIVdZQf</code></p>
+    <img id="img2" src="/api/image-proxy?url=https%3A%2F%2Fdrive.google.com%2Fuc%3Fexport%3Dview%26id%3D1JqzzF-TNlzaLNvKBwpDXkx_IchIVdZQf" alt="Test Image 2" onerror="handleError('img2', 'error2')" onload="handleSuccess('img2', 'error2')">
+    <p id="error2"></p>
+  </div>
+
+  <h2>Console Output</h2>
+  <pre id="console-output"></pre>
+
+  <script>
+    // Log to both console and our custom output area
+    function log(message) {
+      console.log(message);
+      const output = document.getElementById('console-output');
+      output.textContent += message + '\n';
+    }
+
+    function handleError(imgId, errorId) {
+      const img = document.getElementById(imgId);
+      const errorElement = document.getElementById(errorId);
+      errorElement.className = 'error';
+      errorElement.textContent = 'Error loading image!';
+      log(`Error loading image ${imgId} from ${img.src}`);
+    }
+
+    function handleSuccess(imgId, errorId) {
+      const img = document.getElementById(imgId);
+      const errorElement = document.getElementById(errorId);
+      errorElement.className = 'success';
+      errorElement.textContent = 'Image loaded successfully!';
+      log(`Successfully loaded image ${imgId} from ${img.src}`);
+    }
+
+    // Run tests when page loads
+    window.onload = function() {
+      log('Starting tests...');
+      log('Test 1: Direct Google Drive URL');
+      log('Test 2: Proxied Google Drive URL');
+      log('Check the images above to see if they loaded successfully.');
+    };
+  </script>
+</body>
+</html>

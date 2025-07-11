@@ -23,7 +23,7 @@ export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
-    allowedHosts: true,
+    allowedHosts: true as const,
   };
 
   const vite = await createViteServer({
@@ -45,8 +45,14 @@ export async function setupVite(app: Express, server: Server) {
     const url = req.originalUrl;
 
     try {
+      // Fix path resolution to avoid double drive prefix on Windows
+      const currentDir = new URL('.', import.meta.url).pathname;
+      // Remove leading slash on Windows paths that start with drive letter
+      const normalizedDir = process.platform === 'win32' && currentDir.startsWith('/') ? 
+        currentDir.substring(1) : currentDir;
+      
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        normalizedDir,
         "..",
         "client",
         "index.html",
@@ -68,7 +74,13 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  // Fix path resolution to avoid double drive prefix on Windows
+  const currentDir = new URL('.', import.meta.url).pathname;
+  // Remove leading slash on Windows paths that start with drive letter
+  const normalizedDir = process.platform === 'win32' && currentDir.startsWith('/') ? 
+    currentDir.substring(1) : currentDir;
+  
+  const distPath = path.resolve(normalizedDir, "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

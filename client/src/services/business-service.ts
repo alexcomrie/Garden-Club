@@ -361,7 +361,9 @@ function getDirectImageUrl(url: string): string {
       const fileId = match[1] || match[2];
       if (fileId) {
         // Use export=view instead of export=download for better compatibility
-        return `https://drive.google.com/uc?export=view&id=${fileId}`;
+        // Add a timestamp to prevent caching issues
+        const timestamp = new Date().getTime();
+        return `https://drive.google.com/uc?export=view&id=${fileId}&t=${timestamp}`;
       }
     }
   }

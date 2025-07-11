@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import imageProxyRouter from "./image-proxy";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // This PWA is primarily frontend-focused with Google Sheets integration
@@ -20,6 +21,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch restaurants" });
     }
   });
+
+  // Image proxy endpoint to handle CORS issues with Google Drive images
+  app.use("/api/image-proxy", imageProxyRouter);
 
   const httpServer = createServer(app);
   return httpServer;

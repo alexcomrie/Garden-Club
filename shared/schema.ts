@@ -58,9 +58,45 @@ export const UserSchema = z.object({
 
 export const InsertUserSchema = UserSchema.omit({ id: true });
 
+// Restaurant Schema
+export const RestaurantSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  address: z.string(),
+  phoneNumber: z.string(),
+  whatsAppNumber: z.string().optional(),
+  openingHours: z.string(),
+  hasDelivery: z.boolean(),
+  deliveryPrice: z.number(),
+  imageUrl: z.string().optional(),
+  logoUrl: z.string().optional(),
+  bannerUrl: z.string().optional(),
+  description: z.string().optional(),
+  mixPrices: z.record(z.string(), z.number()).optional(),
+});
+
+// MenuItem Schema
+export const MenuItemSchema = z.object({
+  name: z.string(),
+  section: z.string(),
+  category: z.string(),
+  prices: z.record(z.string(), z.number()),
+  period: z.string(),
+  displayDate: z.string().optional(),
+  specials: z.array(z.string()),
+  specialOption: z.string().optional(),
+  specialCap: z.number().optional(),
+  description: z.string().optional(),
+  sides: z.array(z.string()),
+  veg: z.array(z.string()),
+  gravey: z.array(z.string()),
+});
+
 export type Business = z.infer<typeof BusinessSchema>;
 export type Product = z.infer<typeof ProductSchema>;
 export type CartItem = z.infer<typeof CartItemSchema>;
 export type Cart = z.infer<typeof CartSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type InsertUser = z.infer<typeof InsertUserSchema>;
+export type Restaurant = z.infer<typeof RestaurantSchema>;
+export type MenuItem = z.infer<typeof MenuItemSchema>;
