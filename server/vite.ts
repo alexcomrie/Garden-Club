@@ -41,8 +41,19 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   app.use(vite.middlewares);
+
+  // This middleware should only handle HTML navigation requests.
+  // Other assets (.js, .css, .tsx, images) should be handled by vite.middlewares or other specific routes.
   app.use("*", async (req, res, next) => {
+    // If the request is not for HTML, or looks like a file asset Vite should handle,
+    // or is an API call, let other middlewares (like Vite's) handle it.
+    // This is a simplified check; a more robust check might inspect extensions or req.path.
+    if (!req.accepts('html') || req.path.includes('.') || req.path.startsWith('/api')) {
+      return next();
+    }
+
     const url = req.originalUrl;
+    log(`Serving index.html for ${url}`);
 
     try {
       // Fix path resolution to avoid double drive prefix on Windows
@@ -60,11 +71,11 @@ export async function setupVite(app: Express, server: Server) {
 
       // always reload the index.html file from disk incase it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      // Remove manual cache busting, let Vite handle it.
-      // template = template.replace(
-      //   `src="/src/main.tsx"`,
-      //   `src="/src/main.tsx?v=${nanoid()}"`,
-      // );
+      // Restore manual cache busting as it might be intentional for this custom server
+      template = template.replace(
+        `src="/src/main.tsx"`,
+        `src="/src/main.tsx?v=${nanoid()}"`,
+      );
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
